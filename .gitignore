@@ -1,0 +1,17 @@
+.openarms/*
+.opencode/*
+# OpenArms runtime logs
+.openarms/logs/
+.openarms/.handoff-lock
+.env
+.venv/
+__pycache__/
+*.pyc
+.env.*
+!.env.example
+!.env.docker.example
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+artifacts/ai/
