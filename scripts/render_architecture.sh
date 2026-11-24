@@ -19,10 +19,10 @@ cat << 'EOF'
 +----------------------------------------------------------------------------------------------------------------------+
 |  TIER 1: FRONTEND & EDGE TIER (Vercel & Cloudflare)                                                                  |
 |  +----------------------------------------------------------------------------------------------------------------+  |
-|  |  [Cloudflare Edge]                [Vercel Global Edge Network]              [Next.js 14 App Router]             |  |
-|  |  - Free DNS Management            - Zero-config CI/CD Deployment            - Video Player (Stream from Bucket) |  |
-|  |  - SSL/TLS Termination            - Serverless Edge Middleware              - Live 5s Risk Timeline Component   |  |
-|  |  - DDoS Shield & Edge Cache       - Auto Preview & Production URLs          - Real-time Alert Badges & Modal    |  |
+|  |  [Cloudflare Edge]                [Vercel Global Edge Network]              [Next.js 14 App Router]             | |
+|  |  - Free DNS Management            - Zero-config CI/CD Deployment            - Video Player (Stream from Bucket) | |
+|  |  - SSL/TLS Termination            - Serverless Edge Middleware              - Live 5s Risk Timeline Component   | |
+|  |  - DDoS Shield & Edge Cache       - Auto Preview & Production URLs          - Real-time Alert Badges & Modal    | |
 |  +----------------------------------------------------------------------------------------------------------------+  |
 +----------------------------------------------------------------------------------------------------------------------+
                                            |
@@ -32,10 +32,10 @@ cat << 'EOF'
 +----------------------------------------------------------------------------------------------------------------------+
 |  TIER 2: BACKEND SERVERLESS COMPUTE (Render / Docker)                                                                |
 |  +----------------------------------------------------------------------------------------------------------------+  |
-|  |  [Render Web Service]             [Docker Container]                        [FastAPI Orchestrator]              |  |
-|  |  - Free Web Service Tier          - Base: python:3.11-slim                  - Async non-blocking endpoints      |  |
-|  |  - Auto HTTPS: /api/v1/analyze    - System: ffmpeg (audio & frames)         - asyncio.gather() parallel dispatch|  |
-|  |  - Port: 8000                     - Python: aiohttp, pydantic, moviepy      - Pydantic schema validation        |  |
+|  |  [Render Web Service]             [Docker Container]                        [FastAPI Orchestrator]              | |
+|  |  - Free Web Service Tier          - Base: python:3.11-slim                  - Async non-blocking endpoints      | |
+|  |  - Auto HTTPS: /api/v1/analyze    - System: ffmpeg (audio & frames)         - asyncio.gather() parallel dispatch| |
+|  |  - Port: 8000                     - Python: aiohttp, pydantic, moviepy      - Pydantic schema validation        | |
 |  +----------------------------------------------------------------------------------------------------------------+  |
 +----------------------------------------------------------------------------------------------------------------------+
                          |                                                     |
