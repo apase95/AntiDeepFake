@@ -55,7 +55,7 @@ cat << 'EOF'
 |  | - Language: Vietnamese (with timestamps)       |  |     |  | - Table: "test_cases" (Pre-computed cache)|  |
 |  | - Output: text transcript chunk                |  |     |  | - Table: "user_sessions" (Auth & tracking)|  |
 |  +------------------------------------------------+  |     |  +-------------------------------------------+  |
-|  | [3. OpenRouter: pplx-decider-flash-v1.3:free]   |  |     +-------------------------------------------------+
+|  | [3. OpenRouter: pplx-decider-flash-v1.3:free]  |  |     +-------------------------------------------------+
 |  | - Perplexity System One Decision Model         |  |
 |  | - Input: State (Transcript + CV Score)         |  |
 |  | - Primitive: Choice Question (calibrated prob) |  |
