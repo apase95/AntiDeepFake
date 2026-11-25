@@ -1,19 +1,28 @@
 import asyncio
 import json
 import math
+import os
+import logging
 import shutil
 import tempfile
 import time
-from contextlib import aclosing
+from contextlib import aclosing, asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException
+from python_multipart.exceptions import MultipartParseError
+import anyio
 from starlette.datastructures import UploadFile
 from starlette.responses import JSONResponse, StreamingResponse
 
 from .media import probe, slice_window
 from .policy import ACTIONS, INJECTION, derive, ground, redact
+
+from .providers import LiveProviders, OfflineProviders, Settings
+from .repository import MemoryRepository, PostgresRepository, SqliteRepository
 
 FILE_LIMIT = 15 * 1024**2
 BODY_LIMIT = FILE_LIMIT + 64 * 1024
@@ -64,20 +73,9 @@ class BoundedUpload:
             return await self.app(scope, replay, send)
 
 
-class OfflineProviders:
-    async def evaluate(self, frame):
-        return 'provider_error', None
-
-    async def transcribe(self, audio):
-        return None
-
-    async def decide(self, previous, current, injection_detected):
-        return None
-
-
-async def bounded(call, fallback):
+async def bounded(call, fallback, timeout):
     try:
-        return await asyncio.wait_for(call, 10)
+        return await asyncio.wait_for(call, timeout)
     except Exception:
         return fallback
 
@@ -86,11 +84,44 @@ def sse(event, payload):
     return f'event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n'
 
 
-def create_app(providers=None, temp_root=None):
-    app = FastAPI()
+def create_app(providers=None, temp_root=None, repository=None, env=None):
+    env = {} if env is None else env
+    mode = env.get('REPOSITORY_BACKEND', 'memory')
+    if repository is None:
+        if mode == 'memory':
+            repository = MemoryRepository()
+        elif mode == 'sqlite':
+            repository = SqliteRepository(env.get('SQLITE_PATH', 'analysis.sqlite3'))
+        elif mode == 'postgres':
+            repository = PostgresRepository(env['DATABASE_URL'])
+        else:
+            raise ValueError('Unknown repository backend')
+    active = providers or OfflineProviders()
+    timeout = float(env.get('PROVIDER_TIMEOUT_SEC', '10'))
+    temp_root = temp_root or env.get('TEMP_ROOT') or None
+
+    @asynccontextmanager
+    async def lifespan(app):
+        nonlocal active
+        await repository.start()
+        try:
+            if providers is None and env.get('PROVIDER_MODE') == 'live':
+                settings = Settings.from_env(env)
+                if not all((settings.sight_user, settings.sight_secret, settings.google_key, settings.router_key)):
+                    raise RuntimeError('Live mode requires all three provider credentials')
+                active = LiveProviders(settings)
+            yield
+        finally:
+            try:
+                if isinstance(active, LiveProviders):
+                    await active.aclose()
+            finally:
+                await repository.close()
+
+    app = FastAPI(lifespan=lifespan)
     app.add_middleware(BoundedUpload)
-    providers = providers or OfflineProviders()
-    logs = []
+    app.add_middleware(CORSMiddleware, allow_origins=[env.get('APP_ORIGIN', 'http://127.0.0.1:3000')],
+                       allow_methods=['GET', 'POST'], allow_headers=['Content-Type'])
 
     @app.get('/health')
     async def health():
@@ -100,15 +131,17 @@ def create_app(providers=None, temp_root=None):
     async def ready():
         if not all(shutil.which(tool) for tool in ('ffmpeg', 'ffprobe')):
             return error(503, 'not_ready', 'Media tools unavailable.')
-        return {'status': 'ok', 'repository': 'memory'}
+        if not await repository.ready():
+            return error(503, 'not_ready', 'Repository unavailable.')
+        return {'status': 'ok', 'repository': repository.name}
 
     @app.get('/api/v1/cases')
     async def cases():
-        return []
+        return await repository.cases()
 
     @app.get('/api/v1/logs')
     async def analysis_logs():
-        return list(reversed(logs))
+        return await repository.logs()
 
     @app.post('/api/v1/analyze')
     async def analyze(request: Request):
@@ -134,7 +167,7 @@ def create_app(providers=None, temp_root=None):
             if duration > 30:
                 return error(422, 'duration_exceeded', 'Video exceeds 30 seconds.')
             handed_off = True
-        except (ValueError, TimeoutError):
+        except (ValueError, TimeoutError, MultipartParseError, HTTPException):
             return error(400, 'invalid_file', 'Video could not be read.')
         finally:
             if not handed_off:
@@ -155,10 +188,10 @@ def create_app(providers=None, temp_root=None):
                         async def cv():
                             if frame is None:
                                 return 'insufficient_visual_data', None
-                            return await bounded(providers.evaluate(frame), ('provider_error', None))
+                            return await bounded(active.evaluate(frame), ('provider_error', None), timeout)
 
                         async def stt():
-                            return '' if audio is None else await bounded(providers.transcribe(audio), None)
+                            return '' if audio is None else await bounded(active.transcribe(audio), None, timeout)
 
                         async with asyncio.TaskGroup() as group:
                             cv_task, stt_task = group.create_task(cv()), group.create_task(stt())
@@ -167,7 +200,7 @@ def create_app(providers=None, temp_root=None):
                         text = redact(raw or '')
                         injection = bool(INJECTION.search(text) or INJECTION.search(previous))
                         decision = (None if raw is None else await bounded(
-                            providers.decide(previous, text, injection), None))
+                            active.decide(previous, text, injection), None, timeout))
                         # An injection flag is not evidence of coercion. Fail closed on
                         # untrusted model output for this pair rather than promote it.
                         if injection:
@@ -195,9 +228,14 @@ def create_app(providers=None, temp_root=None):
                                         message='Analysis could not finish.', request_id=analysis_id))
             finally:
                 if count:
-                    logs.append(dict(analysis_id=analysis_id, source_type='user_upload',
-                                     window_count=count, overall_risk_level=overall, max_cv_score=max_cv))
-                    del logs[:-100]
+                    with anyio.move_on_after(5, shield=True):
+                        try:
+                            await repository.insert(dict(analysis_id=analysis_id, source_type='user_upload',
+                                duration_seconds=math.ceil(duration), window_count=count,
+                                overall_risk_level=overall, max_cv_score=max_cv,
+                                processing_time_ms=int((time.monotonic()-started)*1000)))
+                        except Exception:
+                            logging.getLogger(__name__).warning('Analysis log could not be persisted')
 
         class AnalysisResponse(StreamingResponse):
             async def __call__(self, scope, receive, send):
@@ -213,4 +251,4 @@ def create_app(providers=None, temp_root=None):
     return app
 
 
-app = create_app()
+app = create_app(env=os.environ)
