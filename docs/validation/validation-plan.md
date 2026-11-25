@@ -17,7 +17,7 @@
 | Test ID | Scenario | Expected Behavior & Recorded Evidence |
 |---|---|---|
 | **T01** | **Case 1: Face-swap + Urgent Transfer** | Sightengine flags tampering (`>= 0.60`); STT captures urgency; Decider outputs `confirmed_scam`; Quote grounding verifies `"đừng gọi cho mẹ"`. |
-| **T02** | **Case 2: Genuine Face + Urgent Transfer** | Sightengine stays low (`< 0.40`); STT & Decider trigger `verbal_pressure_only` (ORANGE alert) independently without waiting for CV. |
+| **T02** | **Case 2: Genuine Face + Urgent Transfer** | Sightengine stays low (`< 0.40`); STT & Decider trigger `verbal_pressure_only` independently of CV; `risk_level` is `MEDIUM` for pressure and `HIGH` for urgent demands combined with attempts to prevent verification. |
 | **T03** | **Case 3: Blurry / Low-Res Video + Casual Talk** | CV degrades gracefully to `insufficient_visual_data` (no false deepfake accusation); overall verdict stays `normal` (GREEN). |
 | **T04** | **Visual Tampering Only + Benign Chat** | Sightengine flags face-swap, speech is completely safe -> outputs `visual_alert_only` (YELLOW caution: do not verify identity via video). |
 | **T05** | **Silent Audio / Missing Face** | Video track has no face or audio track is silent -> no crash; returns `insufficient_visual_data` / empty transcript safely. |

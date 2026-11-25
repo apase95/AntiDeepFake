@@ -26,6 +26,7 @@ event: window
 data: {"window_id":2,"start_sec":5,"end_sec":10,"cv_status":"evaluated","cv_score":0.88,"transcript_redacted":"Chuyển ngay giúp em [REDACTED_NUM] triệu, đừng gọi cho mẹ.","rolling_context_used":true,"verdict":"confirmed_scam","probability":0.94,"trigger_quote":"đừng gọi cho mẹ","recommended_action":"Urgent Warning: Pause transfer and call your saved phone number to verify."}
 ```
 - **Allowed `cv_status` values**: `"evaluated"`, `"insufficient_visual_data"`, `"provider_error"`.
+- **Window `risk_level`**: `LOW`, `MEDIUM`, `HIGH`, or `UNKNOWN`. Coercive speech can produce `verbal_pressure_only` with `HIGH` risk independently of visual evidence. `confirmed_scam` requires both verbal and visual evidence.
 - **Allowed `verdict` values**: `"normal"`, `"visual_alert_only"`, `"verbal_pressure_only"`, `"confirmed_scam"`, `"evaluation_incomplete"`.
 - **Invariants**:
   - `trigger_quote` must be `null` or a verified normalized substring of `transcript_redacted` (or the previous window transcript).
